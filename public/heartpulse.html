@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>HeartPulse v2</title>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+<style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        background: black;
+        overflow: hidden;
+        height: 100%;
+        width: 100%;
+    }
+    canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+    }
+</style>
+</head>
+<body>
+
+<canvas id="cv"></canvas>
+
+<script>
+// ----------------------------------------------------
+// TouchWave Server 연결
+// ----------------------------------------------------
+const socket = io("https://touchwave-server-v2-production.up.railway.app", {
+    transports: ["websocket"]
+});
+
+socket.on("connect", () => {
+    console.log("🟣 HeartPulse Connected:", socket.id);
+});
+
+// TouchWave 입력값
+let twX = 0.5;
+let twY = 0.5;
+let twEnergy = 0;
+let twTime = -9999;
+
+socket.on("touchwave", ({ x, y, energy }) => {
+    twX = x;
+    twY = y;
+    twEnergy = energy;
+    twTime = performance.now();
+});
+
+// ----------------------------------------------------
+// Canvas 설정
+// ----------------------------------------------------
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+
+function resize() {
+    cv.width = window.innerWidth;
+    cv.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
+
+// ----------------------------------------------------
+// HeartPulse 렌더링
+// ----------------------------------------------------
+function drawHeart(scale, color, alpha) {
+    ctx.save();
+    ctx.translate(cv.width / 2, cv.height / 2);
+    ctx.scale(scale, scale);
+    ctx.globalAlpha = alpha;
+
+    ctx.beginPath();
+    for (let a = 0; a < Math.PI * 2; a += 0.03) {
+        let x = 16 * Math.pow(Math.sin(a), 3);
+        let y = -(13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a));
+        ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.restore();
+}
+
+function loop(t) {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, cv.width, cv.height);
+
+    // 자연스러운 맥동 (오실레이션)
+    const audioPulse = (Math.sin(t * 0.002) + 1) * 0.3;
+
+    // 터치 파동
+    const touchPulse = twEnergy * 1.2;
+
+    // 전체 스케일
+    const pulse = 0.4 + audioPulse * 0.7 + touchPulse;
+
+    const size = Math.min(cv.width, cv.height) * 0.04;
+
+    drawHeart(size * (1 + pulse), "#ffdd88", 0.6);
+    drawHeart(size * (0.7 + pulse * 0.4), "#ffcc55", 0.8);
+    drawHeart(size * (0.4 + pulse * 0.2), "#ffffff", 1);
+
+    requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+
+</body>
+</html>
