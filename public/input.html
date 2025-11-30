@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>TouchWave Input</title>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+<style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        background: black;
+        overflow: hidden;
+        touch-action: none;
+        height: 100%;
+        width: 100%;
+    }
+    canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+    }
+    #hint {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        color: white;
+        font-size: 18px;
+        opacity: 0.6;
+        z-index: 20;
+    }
+</style>
+</head>
+<body>
+
+<div id="hint">화면을 터치하면 파동이 전송됩니다</div>
+<canvas id="cv"></canvas>
+
+<script>
+// ----------------------------------------------------
+// TouchWave Server 연결
+// ----------------------------------------------------
+const socket = io("https://touchwave-server-v2-production.up.railway.app", {
+    transports: ["websocket"]
+});
+
+socket.on("connect", () => {
+    console.log("🔵 TouchWave Input Connected:", socket.id);
+});
+
+// ----------------------------------------------------
+// Canvas 설정
+// ----------------------------------------------------
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+
+function resize() {
+    cv.width = window.innerWidth;
+    cv.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
+
+// ----------------------------------------------------
+// 파동 데이터
+// ----------------------------------------------------
+let ripples = [];
+
+// ----------------------------------------------------
+// 터치 좌표 정규화
+// ----------------------------------------------------
+function getPos(e) {
+    const t = e.touches[0];
+    return {
+        x: t.clientX / window.innerWidth,
+        y: t.clientY / window.innerHeight
+    };
+}
+
+// ----------------------------------------------------
+// energy 계산 (속도 기반)
+// ----------------------------------------------------
+let lastX = 0.5, lastY = 0.5;
+let lastTime = performance.now();
+
+function calcEnergy(x, y) {
+    const now = performance.now();
+    const dt = now - lastTime;
+    lastTime = now;
+
+    const dx = x - lastX;
+    const dy = y - lastY;
+
+    lastX = x;
+    lastY = y;
+
+    const v = Math.sqrt(dx*dx + dy*dy);
+    return Math.min(1, v * 15);
+}
+
+// ----------------------------------------------------
+// 터치 이벤트 처리
+// ----------------------------------------------------
+function handleTouch(e) {
+    e.preventDefault();
+
+    const pos = getPos(e);
+    const energy = calcEnergy(pos.x, pos.y);
+
+    socket.emit("touchwave", {
+        x: pos.x,
+        y: pos.y,
+        energy
+    });
+
+    ripples.push({
+        x: pos.x * cv.width,
+        y: pos.y * cv.height,
+        r: 0,
+        alpha: 1,
+        speed: 10 + energy * 35
+    });
+}
+
+document.body.addEventListener("touchstart", handleTouch);
+document.body.addEventListener("touchmove", handleTouch);
+
+// ----------------------------------------------------
+// 화면 렌더링 (흰색 파동)
+// ----------------------------------------------------
+function loop() {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+
+    for (let r of ripples) {
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(255,255,255,${r.alpha})`;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        r.r += r.speed;
+        r.alpha -= 0.03;
+
+        if (r.alpha <= 0) ripples = ripples.filter(a => a !== r);
+    }
+
+    requestAnimationFrame(loop);
+}
+loop();
+</script>
+
+</body>
+</html>
