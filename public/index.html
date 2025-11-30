@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Socket.IO Test</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+  <h1>Socket.IO 연결 테스트</h1>
+  <script>
+    const socket = io();
+
+    socket.on("connect", () => {
+      alert("서버 연결 성공!");
+    });
+  </script>
+</body>
+</html>
